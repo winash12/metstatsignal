@@ -29,10 +29,12 @@ def main():
     #plt.show()
 
     varx = freq[1]*np.sum(gxx)
+    print(varx)
+
     tau = gettau(t,x)
 
     grxx = performMCSimulation(t,tau)
-    avgdt = np.sum(np.diff(t))/t.size
+
     grxxsum = np.sum(grxx,axis=0)
     grxxavg = grxxsum/nsim
     varrx = freq[1]*np.sum(grxxavg)
@@ -40,17 +42,19 @@ def main():
 
     grxxavg = facx*grxxavg
 
+    avgdt = np.sum(np.diff(t))/t.size
     rho = np.exp(-avgdt/tau)
     rhosq = rho*rho
-    freq = 2*np.pi*freq
-    gredthx = (1.0 -rhosq)/(1.0-2.0*rho*np.cos(np.pi*freq[1:]/freq[-1])+rhosq)
+    freq_ang=2.*np.pi*freq
+    gredthx = (1.0 -rhosq)/(1.0-2.0*rho*np.cos(np.pi*freq_ang[1:]/freq_ang[-1])+rhosq)
     varrx = freq[1]*np.sum(gredthx)
     facx = varx/varrx
-    gredthx = facx*gredthx
 
+    gredthx = facx*gredthx
     corrx = grxxavg/gredthx
 
     gxxc = gxx/corrx
+
 
     np.sort(grxx,axis=1)
 
@@ -107,7 +111,6 @@ def performMCSimulation(t,tau):
         psd = psd*facx
         grxx.append(psd)
     grxx = np.asarray(grxx,dtype=np.float64)
-
     return grxx
     
 def getdof(window,noverlap):
@@ -126,24 +129,22 @@ def createLombScargleSpectrum(t,x):
     ofac = 4.
     tChunked,xChunked = chunkDataIntoSegments(noverlap,t,x)
     psdSeg=[]
-    avgdtx = np.mean(np.diff(t))/(t.size-1)
-    #print(avgdtx)
-    nseg = tChunked.shape[1]
     freq = makeFrequencyVector1(tChunked[0,:],4,1)
     freq_angular = 2*np.pi*freq
-    psdSq = []
-
+    psd = []
     for tseg,xseg in zip(tChunked,xChunked):
         detrendedSegment = signal.detrend(xseg,type='linear')
         ww = createWelchWindow(tseg)
         detrendedWindowedX = detrendedSegment*ww
-        scaleFactorForAutoSpectrum = 2.0*np.mean(np.diff(tChunked))*tChunked.size/np.sum(ww*ww)
-        psdseg = signal.lombscargle(tseg,detrendedWindowedX,freq_angular[1:])*scaleFactorForAutoSpectrum
-        psdSeg.append(psdseg)
-        
+        psdseg = signal.lombscargle(tseg,detrendedWindowedX,freq_angular[1:])
+        psd.append(psdseg)
 
-    psdScaled = np.asarray(psdSeg,dtype=float)
-    psd = np.mean(psdScaled,axis=0)
+    psd = np.asarray(psd,dtype=float)
+    psd = np.sum(psd,axis=0)
+    tpx = np.mean(np.diff(t)*tChunked.shape[1])
+    dfx = 1/(4.*tpx)
+    scaleFactorForAutoSpectrum = 2.0/(7*dfx*4*np.sum(ww*ww))
+    psd = psd*scaleFactorForAutoSpectrum
     return psd
 
 def makear1(t,tau):

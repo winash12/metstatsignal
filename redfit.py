@@ -29,7 +29,6 @@ def main():
     #plt.show()
 
     varx = freq[1]*np.sum(gxx)
-    print(varx)
 
     tau = gettau(t,x)
 

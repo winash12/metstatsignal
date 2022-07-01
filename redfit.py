@@ -8,6 +8,7 @@ import traceback
 from scipy.stats  import chisquare,chi2,ttest_ind
 from pymicra.signal import test_reverse_arrangement
 import matplotlib.pyplot as plt
+
 def main():
     
     global freq,varx,nsim
@@ -54,7 +55,6 @@ def main():
 
     gxxc = gxx/corrx
 
-
     np.sort(grxx,axis=1)
 
     idx90 = int(0.90* nsim)
@@ -65,14 +65,14 @@ def main():
     ci95 = grxx[idx95,:]/corrx
     ci99 = grxx[idx99,:]/corrx
 
-    #print(np.sum(gxxc),np.sum(gredthx))
+
     statistic,p_value=ttest_ind(gxxc,grxx)
-    plt.hist(statistic)
-    #plt.hist(p_value)
-    plt.show()
-    sys.exit()
+
     dof = getdof(1,7)
-    chi2.ppf(1-0.10,dof)
+    print(dof)
+
+    print(chi2.ppf(1-0.10,dof))
+    sys.exit()
     chi2.ppf(1-0.05,dof)
     chi2.ppf(1-0.01,dof)
 
@@ -227,8 +227,6 @@ def tauest(t,x):
     rhoavg = np.exp(-dt/tau)
     return tau, rhoavg
 
-
-
 def rhoest(x):
 
     sum1 = np.zeros(np.size(x))
@@ -297,19 +295,21 @@ def createWelchWindow(t):
 def makeFrequencyVector1(t,ofac=4.,hifac=1.):
 
     dt = np.mean(np.diff(t))
-
-    flo = (1/(2*dt))/ (np.size(t)*ofac)
+    tpx = dt * t.size
+    flo =1.0 / (tpx*ofac)
 
     fhi = hifac / (2*dt)
+
     df = flo
-    nf = int((fhi - flo) / df + 1)
+    nf = fhi /df + 1
+    nf = int(nf)
 
     freq = np.linspace(flo, fhi, nf)
-    flow = (2*dt)**(-1)/(len(t)*ofac)
-    fhigh = hifac/(2*dt)+(1/(2*dt))/ (len(t)*ofac)
-    nfi = ((2*dt)**(-1))/ (len(t)*ofac)
-    f = np.arange(flow,fhigh,nfi)
-    return f
+    #flow = (2*dt)**(-1)/(len(t)*ofac)
+    #fhigh = hifac/(2*dt)+(1/(2*dt))/ (len(t)*ofac)
+    #nfi = ((2*dt)**(-1))/ (len(t)*ofac)
+    #f = np.arange(flow,fhigh,nfi)
+    return freq
 
 
 def makeFrequencyVector(t,ofac=4.,hifac=1.):

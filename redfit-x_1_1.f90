@@ -266,10 +266,13 @@
   real, dimension(:,:), allocatable :: phrxy            ! Phase spectrum bivariate AR(1)
   real, dimension(:), allocatable :: redx               ! AR(1) time series - based on time series x
   real, dimension(:), allocatable :: redy               ! AR(1) time series - based on time series y
-!
-  real :: taux,tauy, rnsim, getchi2, fac90, fac95, fac99, dof, neff, &
+  !
+  
+  real :: taux,tauy, rnsim, &
              avgdtx, avgdty, facx, facy, facxy, rhox, rhoxsq, rhoy, rhoysq, varx, vary, &
-             varrx, varry, winbw, alphacritx, alphacrity, faccritx, faccrity,varxy, varrxy, cobias, facphi, z, getz, csig, se_dummy
+             varrx, varry, winbw,varxy, varrxy, cobias, facphi, csig, se_dummy
+  integer, parameter :: dp = kind(1.0d0)
+  real(dp):: fac95,fac99,fac90,dof,neff,alpha1,alphacritx,alphacrity,faccrity,faccritx,z
   integer:: kstart, kstop, krate, kmax, ntime
   integer :: i, i2, ncnt, iocheck, ialloc
   integer :: idx90, idx95, idx99
@@ -296,9 +299,32 @@
      real, intent(in) :: ofac, hifac
      integer, intent(in) :: n50, iwin
      real, dimension(:), intent(out) :: frq, gxx, gyy, gxy, cxy, phxy
-     end subroutine spectr
-  end interface
-!
+   end subroutine spectr
+end interface
+  !
+interface 
+   subroutine getchi2(dof,alpha1,chi2)
+     implicit none
+     integer, parameter :: dp = kind(1.0d0)
+     real(DP), parameter :: tol = 1.0e-3
+     integer, parameter :: itmax = 100
+     real(DP) :: dof, alpha1
+     real(DP) :: ac, lm, rm, eps, chi2, za, x
+     integer :: iter
+   end subroutine getchi2
+end interface
+interface
+   subroutine getz(alpha1,z)
+     implicit none
+     integer, parameter :: dp = kind(1.0d0)
+     real(dp), parameter :: tol = 1.0e-5
+     real(dp), parameter :: sq2 = 1.414213562
+     integer, parameter :: itmax = 100
+     real(dp) :: alpha1
+     real(dp) :: atmp, acalc, zr, zl, zm, z
+     integer :: iter
+   end subroutine getz
+end interface
   interface
      subroutine gettau(rhopre,tx,x,npx,tau)
      implicit none
@@ -311,9 +337,12 @@
 !
   Interface
      subroutine getdof(iwin, n50, dof, neff)
-     implicit none
-     integer, intent(in) :: iwin, n50
-     real, intent(out) :: dof,neff
+       implicit none
+       integer, parameter :: dp = kind(1.0d0)
+       integer, intent(in) :: iwin, n50
+       real(dp), intent(out) :: dof,neff
+       real(dp), parameter, dimension(0:4) :: c50 = (/0.500, 0.344, 0.167, 0.250, 0.096/)
+       real(dp) :: c2, denom, rn
      end subroutine getdof
   end interface
 !
@@ -327,7 +356,8 @@ interface
   end interface
 !
   call system_clock(kstart, krate, kmax)
-!
+  alpha1 = 0.05
+  !
 ! open log file for error messages
 ! --------------------------------
   open(errio, file = "redfit-x.log", carriagecontrol = "FORTRAN")
@@ -482,7 +512,9 @@ interface
   varx = freq(2) * sum(gxx(1:nout))     ! NB: freq(2) = dfxy
   vary = freq(2) * sum(gyy(1:nout))     ! NB: freq(2) = dfxy
   varxy = freq(2) * sum(gxy(1:nout))
-!
+
+
+  !
 ! estimate tau unless tau is prescribed; die gracefully in case of an error
 ! ----------------------------------------------------------------------------------
    call gettau(rhopre(1), tx(1:npx), x(1:npx), npx, taux)
@@ -604,9 +636,10 @@ interface
 ! determine lag-1 autocorrelation coefficient
 ! -------------------------------------------
   write(*,*) avgdtx
+
   rhox = exp (-avgdtx / taux)              ! avg. autocorrelation coefficient x
   rhoxsq = rhox * rhox
-
+  
   !
   rhoy = exp (-avgdty / tauy)              ! avg. autocorrelation coefficient y
   rhoysq = rhoy * rhoy
@@ -618,13 +651,14 @@ interface
 !
 ! theoretical spectrum based on rho estimated from the time series x
 ! ------------------------------------------------------------------
-  write(*,*) fnyq
+
   gredthx(1:nout) = (1.0-rhoxsq) / (1.0-2.0*rhox*cos(pi*freq(1:nout)/fnyq)+rhoxsq)
 
   varrx = freq(2) * sum(gredthx(1:nout))
   facx = varx / varrx
   gredthx(1:nout) = facx * gredthx(1:nout)
-!
+
+  
 ! theoretical spectrum based on rho estimated from the time series y
 ! ------------------------------------------------------------------
   gredthy(1:nout) = (1.0-rhoysq) / (1.0-2.0*rhoy*cos(pi*freq(1:nout)/fnyq)+rhoysq)
@@ -641,8 +675,8 @@ interface
 ! -------------------------------------
   gxxc(1:nout) = gxx(1:nout) / corrx(1:nout)
   gyyc(1:nout) = gyy(1:nout) / corry(1:nout)
-  write(*,*) sum(gxxc),sum(gredthx)
-  stop
+  write(*,*) sum(gxx),sum(gredthx)
+
   !
 ! red-noise false-alarm levels from percentiles of MC simulation
 ! --------------------------------------------------------------
@@ -708,10 +742,17 @@ interface
   write(*,'(1x,A5,4x,F10.2)') "dof =", dof
   write(*,'(1x,A6,3x,F10.2)') "neff =", neff
   write(*,'(1x,A7,2x,F10.2)') "alpha =", alpha
-!
-  fac90 = getchi2(dof, 0.10) / dof
-  fac95 = getchi2(dof, 0.05) / dof
-  fac99 = getchi2(dof, 0.01) / dof
+  !
+
+  alpha1 = 0.1
+  call getchi2(dof, alpha1,fac90)
+  fac90 = fac90/dof
+  alpha1 = 0.05
+  call  getchi2(dof, alpha1,fac95)
+  fac95 = fac95/dof
+  alpha1 = 0.01
+  call getchi2(dof, alpha1,fac99)
+  fac99 = fac99/dof
   if (ierr .eq. 1) stop
 !
 ! coherency - False alarm level (theoretical)
@@ -759,7 +800,8 @@ interface
 !
 ! Phase Spectrum - Confidence intervals (theoretical)
 ! ---------------------------------------------------
-   z = getz(alpha/2.0)
+   alpha1 = alpha1/2.0
+   call getz(alpha1,z)
    facphi = z *1/sqrt(2*neff) * 180/pi
 !
    do i= 1,nout
@@ -854,7 +896,8 @@ interface
              call avevar(phbxy(1:nsim,i),ave_phbxy,var_phbxy)
              se_dummy = 0.0
              se_dummy = sqrt(var_phbxy)
-             z = getz(alpha/2.0)
+             alpha1 = alpha1/2.0
+             call getz(alpha1,z)
              se_phbxy(1,i,sg) = phxy(i) + z * se_dummy          ! Standard error based CI. Lower boundary  standard error *z(alpha).
              se_phbxy(2,i,sg) = phxy(i) -  z * se_dummy         ! Standard error bassed CI. Upper boundary
 
@@ -892,12 +935,14 @@ interface
 ! -----------------------------------------------
 ! for autospectrum xx
   alphacritx = 1.0 / real(nsegx)
-  faccritx = getchi2(dof, alphacritx) / dof
+  call getchi2(dof, alphacritx,faccritx)
+  faccritx = faccritx/dof
   if (ierr .eq. 1) stop
 !
 ! for autospectrum yy
   alphacrity = 1.0 / real(nsegy)
-  faccrity = getchi2(dof, alphacrity) / dof
+  call  getchi2(dof, alphacrity,faccrity)
+  faccrity = faccrity/dof
   if (ierr .eq. 1) stop
 !
 ! save results of AR(1) fit
@@ -1330,7 +1375,7 @@ interface
      stop
   end if
 !
-  end subroutine allocerr
+ end subroutine allocerr
 !
 !--------------------------------------------------------------------------
   subroutine setdim(fnin,maxdimx,maxdimy,nout)
@@ -1425,6 +1470,7 @@ interface
   tpx = avgdtx * nsegx                                  ! average period of a segment x
   tpy = avgdty * nsegy                                  ! average period of a segment y
   dfx = 1.0 / (ofac * tpx)                              ! freq. spacing x       (fundamental freq)
+
   dfy = 1.0 / (ofac * tpy)                              ! freq. spacing y
 
   if ( dfx >= dfy) then
@@ -1437,7 +1483,8 @@ interface
   nfreq = fnyq / dfxy + 1                       ! f(1) = f0; f(nfreq) = fNyq
   lfreq = nfreq * 2
   nout = nfreq
-!  write(*,*) wz,fnyq,nfreq,lfreq,nout
+  !write(*,*) wz,fnyq,nfreq,nout
+
 
   !
 ! diagnostic output to stdout
@@ -1786,7 +1833,8 @@ interface
 ! spectrum such that the intergral of the smoothed spectrum equals the data variance,
 ! that is a (Gxx(f)*df) = a^2 ; change sign of the phase because of the geological time
 ! axis is inverted compared to the physical axis of time
-!
+  !
+
   scalx = 2.0 / (n50 * nsegx * dfxy * ofac)
   scaly = 2.0 / (n50 * nsegy * dfxy * ofac)
   rnx = nsegx                                   ! make the integer nsegx real number
@@ -2255,12 +2303,12 @@ interface
 ! and n50 overlappaing segments (Harris, 1978)
 !----------------------------------------------------------------------
   implicit none
-!
+  integer, parameter :: DP = kind(1.0d0)
   integer, intent(in) :: iwin, n50
   real, intent(out) :: dof,neff
 !
-  real, parameter, dimension(0:4) :: c50 = (/0.500, 0.344, 0.167, 0.250, 0.096/)
-  real :: c2, denom, rn
+  real(dp), parameter, dimension(0:4) :: c50 = (/0.500, 0.344, 0.167, 0.250, 0.096/)
+  real(dp) :: c2, denom, rn
 !
   rn = real(n50)
   c2 = 2.0 * c50(iwin) * c50(iwin)
@@ -2268,38 +2316,45 @@ interface
   denom = 1.0 + c2 - c2/rn
   neff = rn / denom
   dof = 2.0 * neff
-!
-  end subroutine getdof
+  !
+
+end subroutine getdof
 !
 !----------------------------------------------------------------------
-  real function getchi2(dof, alpha)
+  subroutine getchi2(dof, alpha1,chi2)
 !----------------------------------------------------------------------
   use error
   use nr, only : gammp
 !
   implicit none
-!
-  real, parameter :: tol = 1.0e-3
+  !
+  integer, parameter :: DP = kind(1.0d0)  
+  real(DP), parameter :: tol = 1.0e-3
   integer, parameter :: itmax = 100
-  real :: dof, alpha
-  real :: ac, lm, rm, eps, chi2, za, x, getz
+
+  real(DP) :: dof, alpha1
+  real(DP) :: ac, lm, rm, eps, chi2, za, x
   integer :: iter
 !
 ! use approximation for dof > 30 (Eq. 1.132 in Sachs (1984))
 ! ----------------------------------------------------------
+
+
   if (dof .gt. 30.0) then
-     za = -getz(alpha)   ! NB: Eq. requires change of sign for percentile
+     call getz(alpha1,za)   ! NB: Eq. requires change of sign for percentile
      if (ierr .eq. 1) return
      x = 2.0 / 9.0 / dof
      chi2 = dof * (1.0 - x + za * sqrt(x))**3.0
+
+     stop
   else
      iter = 0
      lm = 0.0
      rm = 1000.0
-     if (alpha .gt. 0.5) then
-        eps = (1.0 - alpha) * tol
+     if (alpha1 .gt. 0.5) then
+        eps = (1.0 - alpha1) * tol
      else
-        eps = alpha * tol
+        eps = alpha1 * tol
      end if
      do
        iter= iter + 1
@@ -2310,20 +2365,21 @@ interface
        end if
        chi2 = 0.5 * (lm + rm)
        ac = 1.0 - gammp(0.5*dof, 0.5*chi2)
-       if (abs(ac - alpha) .le. eps) exit
-       if (ac .gt. alpha) then
+
+       if (abs(ac - alpha1) .le. eps) exit
+       if (ac .gt. alpha1) then
           lm = chi2
        else
           rm = chi2
        end if
      end do
   end if
-  getchi2 = chi2
+  !getchi2 = chi2
 !
-  end function getchi2
+  end subroutine  getchi2
 !
 !----------------------------------------------------------------------
-  real function getz(alpha)
+  subroutine  getz(alpha1,z)
 !----------------------------------------------------------------------
 ! Determine percentiles of the normal distribution using an approximation
 ! of the complementary error function by a Chebyshev polynom.
@@ -2335,16 +2391,17 @@ interface
   use nr, only : erfcc
 !
   implicit none
-!
-  real, parameter :: tol = 1.0e-5
-  real, parameter :: sq2 = 1.414213562
+  !
+  integer, parameter :: dp = kind(1.0d0)
+  real(dp), parameter :: tol = 1.0e-5
+  real(dp), parameter :: sq2 = 1.414213562
   integer, parameter :: itmax = 100
-  real :: alpha
-  real :: atmp, acalc, zr, zl, zm, z
+  real(dp) :: alpha1
+  real(dp) :: atmp, acalc, zr, zl, zm, z
   integer :: iter
 !
-  if (alpha .lt. 0.50) then
-     atmp = alpha * 2.0
+  if (alpha1 .lt. 0.50) then
+     atmp = alpha1 * 2.0
      zr = -0.1
      zl = 10.0
      iter = 0
@@ -2362,8 +2419,8 @@ interface
          if (abs(acalc-atmp) .le. tol) exit
      end do
      z = -1.0 * z
-  else if (alpha .ge. 0.50) then
-     atmp =(alpha - 0.5) * 2.0
+  else if (alpha1 .ge. 0.50) then
+     atmp =(alpha1 - 0.5) * 2.0
      zl = -0.1
      zr = 10.0
      iter = 0
@@ -2381,9 +2438,9 @@ interface
           if (abs(acalc-atmp) .le. tol) exit
      end do
   end if
-  getz = z
+!  getz = z
 !
-  end function getz
+  end subroutine getz
 !
 !----------------------------------------------------------------------
   subroutine gettau(rhopre,tx,x,npx,tau)

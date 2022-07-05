@@ -71,42 +71,13 @@ def main():
 
     dof = getdof(1,7)
     print(dof)
-    fac90 = getchi2(dof,0.1)/dof
-    print(fac90)
-    print(chi2.ppf(0.10,dof)/dof)
-    print(chi2.ppf(0.05,dof))
-    print(chi2.ppf(0.01,dof))
-
+    print(chi2.ppf(1-0.10,dof))
+    print(chi2.ppf(1-0.05,dof))
+    print(chi2.ppf(1-0.01,dof))
     alphacritx = 1.0/(75)
-    faccritx = chi2.ppf(dof,alphacritx)/dof
+    faccritx = chi2.ppf(1-alphacritx,dof)
     test_reverse_arrangement(gxxc,points_number=gxxc.size,alpha=0.1)
 
-def getchi2(dof,alpha):
-
-    tol = 1e-3
-    itmax = 100
-    iter = 0
-    lm = 0.
-    rm = 1000.
-    if (alpha > 0.5):
-        eps = (1.0-alpha)*tol
-    else:
-        eps = alpha*tol
-    while(True):
-        iter +=1
-        if (iter > itmax):
-            return
-        chi2 = 0.5*(lm + rm)
-        ac = 1.0 - special.gammainc(0.5*dof,0.5*chi2)
-        if (abs(ac-alpha) < eps):
-            print(iter)
-            break
-        if (ac >  alpha):
-            lm = chi2
-        else:
-            rm = chi2
-    return chi2
-    
 def testAWSData():
 
     data = pd.read_csv('N 2021-2022-ICHENN7-WestMambalamPWS.csv',parse_dates=[['Date','Time']],dayfirst=True)

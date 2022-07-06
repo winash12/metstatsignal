@@ -5,7 +5,7 @@ from scipy.optimize import brent,minimize_scalar
 from scipy import signal,special
 import sys
 import traceback
-from scipy.stats  import chisquare,chi2,ttest_ind
+from scipy.stats  import chisquare,chi2,ttest_ind,sem
 from pymicra.signal import test_reverse_arrangement
 import matplotlib.pyplot as plt
 
@@ -35,8 +35,8 @@ def main():
 
     grxx = performMCSimulation(t,tau)
 
-    grxxsum = np.sum(grxx,axis=0)
-    grxxavg = grxxsum/nsim
+    grxxavg = np.mean(grxx,axis=0)
+
     varrx = freq[1]*np.sum(grxxavg)
     facx = varx/varrx
 
@@ -55,7 +55,7 @@ def main():
 
     gxxc = gxx/corrx
 
-    print(np.sum(gxxc),np.sum(gredthx),np.sum(grxxavg))
+
     np.sort(grxx,axis=1)
 
     idx90 = int(0.90* nsim)
@@ -71,11 +71,17 @@ def main():
 
     dof = getdof(1,7)
     print(dof)
+
+    try:
+        chi_square_test_statistic,p_value = chisquare(gxxc,gredthx)
+    except:
+        pass
     print(chi2.ppf(1-0.10,dof))
     print(chi2.ppf(1-0.05,dof))
     print(chi2.ppf(1-0.01,dof))
-    alphacritx = 1.0/(75)
-    faccritx = chi2.ppf(1-alphacritx,dof)
+    alphacritx= 1.0/75
+    faccritx = chi2.isf(alphacritx,dof)
+    print(faccritx)
     test_reverse_arrangement(gxxc,points_number=gxxc.size,alpha=0.1)
 
 def testAWSData():

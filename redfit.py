@@ -6,6 +6,8 @@ from scipy import signal,special
 import sys
 import traceback
 from scipy.stats  import chisquare,chi2,ttest_ind,sem
+from scipy.stats import chi2_contingency
+from bias_correction import BiasCorrection
 from pymicra.signal import test_reverse_arrangement
 import matplotlib.pyplot as plt
 
@@ -32,7 +34,9 @@ def main():
     varx = freq[1]*np.sum(gxx)
 
     tau = gettau(t,x)
-
+    red = makear1(t,tau)
+    print(red)
+    sys.exit()
     grxx = performMCSimulation(t,tau)
 
     grxxavg = np.mean(grxx,axis=0)
@@ -53,6 +57,7 @@ def main():
     gredthx = facx*gredthx
     corrx = grxxavg/gredthx
 
+
     gxxc = gxx/corrx
 
 
@@ -66,7 +71,14 @@ def main():
     ci95 = grxx[idx95,:]/corrx
     ci99 = grxx[idx99,:]/corrx
 
-
+    stat,p,dof,expected =chi2_contingency(gxxc)
+    print(dof,p)
+    if p <= 0.05:
+        print("reject H0")
+    else:
+        print('Independent HO tolds true')
+        
+    sys.exit()
     statistic,p_value=ttest_ind(gxxc,grxx)
 
     dof = getdof(1,7)
@@ -153,16 +165,15 @@ def createLombScargleSpectrum(t,x):
 def makear1(t,tau):
 
     n = np.size(t)
-
     red = np.zeros(n)
-    red[0] = 0.
+    red[0] = np.random.normal(0,1,1)
 
-    dt = np.diff(t)
-
-    sigma = 1.0 - np.exp(-2.0 *dt/tau)
-    sigma = np.sqrt(sigma)
-    gasdev = np.random.normal(0,sigma,n-1)
-    red[1:] = red[0:-1]*np.exp(-dt/tau)+sigma * gasdev
+    for i in range(1,n):
+        dt = t[i]-t[i-1]
+        sigma = 1.0 - np.exp(-2.0 *dt/tau)
+        sigma = np.sqrt(sigma)
+        gasdev = np.random.normal(0,1,1)
+        red[i] = red[i-1]*np.exp(-dt/tau)+sigma * gasdev
     return red
     
 def gettau(t,x):

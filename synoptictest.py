@@ -2,6 +2,10 @@ import urllib.request as req
 import os.path
 import json
 import sys
+stdout = sys.stdout
+reload(sys)
+sys.setdefaultencoding('utf-8')
+sys.stdout = stdout
 API_ROOT = "https://api.synopticdata.com/v2/"
 API_TOKEN = "f2f69390151c4a4da5d51cc756ffa6f8"
 # let's get some latest data
